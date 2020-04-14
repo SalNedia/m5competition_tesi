@@ -1,0 +1,73 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+```{r}
+source("models.R")
+
+sales_states <- read.csv("sales_states.csv")
+df_sales_states<- as.data.frame(sales_states)
+
+calendar <- read.csv("calendar.csv",header = TRUE)
+df_calendar<- as.data.frame(calendar)
+df_calendar<-df_calendar[1:1913,]
+
+topLevel <- read.csv("TS_topLevel.csv",header = FALSE)
+df_topLevel<- as.data.frame(topLevel)
+names(df_topLevel) <- c("Date","Y")
+df_topLevel_train<-head(df_topLevel, n=(nrow(df_topLevel)-28))
+df_topLevel_test<-tail(df_topLevel, n=28)
+
+df_sales_states<-cbind(df_sales_states,df_calendar$date)
+df_sales_states_train<-head(df_sales_states, n=(nrow(df_sales_states)-28))
+df_sales_states_test<-tail(df_sales_states, n=28)
+
+```
+
+## Serie di primo livello
+```{r}
+par(mfrow = c(1, 1))
+plot(df_topLevel_train$Y, type="l",ylab="sales", xlab="day")
+```
+
+## Serie di secondo livello
+```{r}
+par(mfrow = c(1, 1))
+plot(df_sales_states_train$CA, type="l",ylab="sales", xlab="day")
+lines(df_sales_states_train$TX, col="red")
+lines(df_sales_states_train$WI, col="yellow")
+legend(0,24000,legend = c("CA","TX","WI"), col = c("black","red","yellow"), lty = 1:1, cex = 0.7)
+
+```
+
+## ACF e PACF serie primo livello
+```{r}
+par(mfrow = c(1, 1))
+acf(df_topLevel_train$Y, lag.max=150,  main="ACF campionaria (h=0,1,...,150)")
+pacf(df_topLevel_train$Y, lag.max=150, main="PACF campionaria (h=0,1,...,150)")
+```
+## ACF e PACF serie CA secondo livello
+```{r}
+par(mfrow = c(1, 1))
+acf(df_sales_states_train$CA, lag.max=150, main="ACF campionaria (h=0,1,...,150)")
+pacf(df_sales_states_train$CA, lag.max=150, main="PACF campionaria (h=0,1,...,150)")
+```
+
+## ACF e PACF serie TX secondo livello
+```{r}
+par(mfrow = c(1, 1))
+acf(df_sales_states_train$TX, lag.max=150, main="ACF campionaria (h=0,1,...,150)")
+pacf(df_sales_states_train$TX, lag.max=150, main="PACF campionaria (h=0,1,...,150)")
+```
+
+## ACF e PACF serie WI secondo livello
+```{r}
+par(mfrow = c(1, 1))
+acf(df_sales_states_train$WI, lag.max=150, main="ACF campionaria (h=0,1,...,150)")
+pacf(df_sales_states_train$WI, lag.max=150, main="PACF campionaria (h=0,1,...,150)")
+```
+
+
