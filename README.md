@@ -1,6 +1,6 @@
 # m5competition_tesi
 
-This project is a collection of files used to compete at the M5 competiton on kaggle.
+This project is a collection of files used to compete at the M5 competiton on kaggle and it will be part of my thesis.
 
 
 ### M5 competion goal
