@@ -24,7 +24,7 @@ ts_sales<-data.frame(ts_sales[1:1913,])
 ts_sales <- data.frame(lapply(ts_sales, function(x) as.numeric(as.character(x))))
 
 par(mfrow = c(1, 1))
-plot(ts_sales$HOBBIES_1_001_CA_1, type="l")
+plot(ts_sales$HOBBIES_1_001_CA_2, type="l")
 
 
 #level 12 (bottom)  
@@ -112,6 +112,3 @@ errors1 <-compute_rmsse(agg_predicted1, agg_actual1, horizon=28)
 
 list_rmsse <-list(errors1,errors2,errors3,errors4,errors5,errors6,errors7,errors8,errors9, errors10, errors11,output$errors)
 compute_wrmsse( list_weights, list_rmsse)
-
-
-

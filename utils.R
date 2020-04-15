@@ -117,6 +117,22 @@ compute_all_forecasts<- function(data, horizon, frequency, model, plot=FALSE) {
   return (list(df_predicted=df_predicted, errors=errors))
 }
 
+group_col<-function(df_actaul_level, map_func, param){
+  
+  col_names<-list()
+  col_names<-names(df_actaul_level)
+  
+  map_actual    <-data.frame(df_actaul_level)
+  groupedcols   <-map_func(param,"", col_names)
+  #rinomino le colonne
+  colnames(map_actual)<-groupedcols
+  
+  #aggregate actual
+  grouped_actual<-data.frame(sapply(unique(names(map_actual)), function(x) rowSums( map_actual[ , grep(x, names(map_actual)), drop=FALSE]) ))
+  
+  return(grouped_actual)
+}
+
 
 map<-function(df_predicted_level,df_actaul_level, map_func, param){
   
@@ -147,7 +163,7 @@ aggregate_level<-function(map_predicted,map_actual){
 }
 
 compute_rmsse<-function(agg_predicted,agg_actual,horizon){
-  
+  #it computes rmsse for each series at the same level
   errors<-vector()
   i=1
   for(x in names(agg_actual)){
@@ -277,3 +293,117 @@ compute_weights<-function( df_sales, df_sell_prices, df_calendar, period=1886:19
   
   return(list_weights)
 }
+
+compute_hierarchy<-function(ts_sales, period=1886:1913){
+  
+  #level 12 (bottom)  
+  #30490 series
+  series12<-ts_sales[period,]
+  #level11
+  #9147 series
+  # HOBBIES_1_001_CA_1 -> HOBBIES_1_001_CA 
+  series11<-group_col(series12, gsub, '.{2}$')
+  
+  #level10
+  #3049 series
+  # HOBBIES_1_001_CA -> HOBBIES_1_001
+  series10<-group_col(series11, gsub, '.{3}$')
+  
+  #level9
+  # 70 series
+  # HOBBIES_1_001_CA_1 -> HOBBIES_1_CA_1
+  series9<-group_col(series12, gsub, '_\\d{3}')
+  
+  #level8
+  # 30 series
+  # HOBBIES_1_001_CA_1 -> HOBBIES_CA_1
+  series8<-group_col(series12, gsub,"_\\d+_\\d+")
+  
+  #level7
+  # 21 series
+  # HOBBIES_1_001_CA -> HOBBIES_1_CA
+  series7<-group_col(series11, gsub,"_\\d{3}")
+  
+  #level6
+  # 9 series
+  # HOBBIES_1_001_CA -> HOBBIES_CA
+  series6<-group_col(series11, gsub,"_\\d+_\\d+")
+  
+  #level5
+  # 7 series
+  # HOBBIES_1_001_CA -> HOBBIES_1
+  series5<-group_col(series11, gsub,".{7}$")
+  
+  #level4
+  # 3 series
+  # HOBBIES_1 -> HOBBIES
+  series4<-group_col(series5, gsub,'.{2}$')
+  
+  #level3
+  # 10 series
+  # HOBBIES_1_CA_1 -> CA_1
+  series3<-group_col(series9, gsub,"^.*?\\_\\d_")
+  
+  #level2
+  # 3 series
+  # CA_1 -> CA
+  series2<-group_col(series3, gsub,'.{2}$')
+  
+  #level1 (top)
+  series1<-group_col(series2, gsub,'.{2}$')
+  
+  
+  hierarchy<-list(series1=series1,series2=series2,series3=series3,series4=series4,series5=series5,series6 = series6,
+                  series7= series7, series8= series8, series9=series9, series10=series10, series11=series11,series12=series12)
+  return(hierarchy)
+}
+
+
+
+compute_proportions<-function(hierarchy, period=1886:1913){
+  
+  list_proportions<-list()
+  
+  for(i in 1:12){
+    series_size<-ncol(hierarchy[[i]])
+    level_prop<-c()
+    j=1
+    for(j in 1:series_size){
+      level_prop[j]<-mean(as.vector(unlist((hierarchy[[i]][j][period,]/hierarchy[[1]][period,]))))
+    }
+    list_proportions[[i]]<-level_prop
+  }
+  
+  return(list_proportions)
+}
+
+
+compute_topdown_rmsse <-function(hierarchy, top_level_predicted, list_proportions){
+  
+  list_errors<-list()
+  for(i in 1:12){
+    series_size<-ncol(hierarchy[[i]])
+    print(paste0("series_size ", series_size))
+    if(i == 1){
+      actual_temp_series<-data.frame(hierarchy[[i]][,])
+      actual_temp_series*list_proportions[[i]]
+      names(actual_temp_series) <- c("Y")
+      errors <-compute_rmsse(top_level_predicted, actual_temp_series, horizon=28)
+    }
+    else{
+      actual_temp_series<-data.frame(hierarchy[[i]][,])
+      pred_temp = data.frame(matrix(NA, nrow = 28, ncol = series_size ))
+      for(j in 1:series_size){
+        pred_temp[,j]<-top_level_predicted[,]*list_proportions[[i]][[j]]
+        names(pred_temp) <- names(actual_temp_series)
+        #pred_temp<-pred_temp[1:28,]
+        
+      }
+      errors <-compute_rmsse(pred_temp, actual_temp_series, horizon=28)
+      rm(pred_temp)
+    }
+    list_errors[[i]]<-errors
+  }
+  return(list_errors)
+}
+

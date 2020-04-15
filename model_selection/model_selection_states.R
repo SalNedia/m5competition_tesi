@@ -1,4 +1,6 @@
 source("models.R")
+source("utils.R")
+
 
 sales_states <- read.csv("data/sales_states.csv")
 df_sales_states<- as.data.frame(sales_states)
@@ -10,6 +12,8 @@ df_calendar<-df_calendar[1:1913,]
 topLevel <- read.csv("data/TS_topLevel.csv",header = FALSE)
 df_topLevel<- as.data.frame(topLevel)
 names(df_topLevel) <- c("Date","Y")
+
+
 df_topLevel_train<-head(df_topLevel, n=(nrow(df_topLevel)-28))
 df_topLevel_test<-tail(df_topLevel, n=28)
 
@@ -31,9 +35,6 @@ fit_snaive <- function(data, horizon, frequency,column) {
   predicted <- as.numeric(fcast$mean)
   return (list(actual=actual, predicted=predicted))
 }
-
-
-
 
 
 
