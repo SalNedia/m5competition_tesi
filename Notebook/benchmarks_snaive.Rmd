@@ -1,0 +1,220 @@
+---
+title: "Benchmarks con modello Seasonal Naive"
+output: html_notebook
+---
+In questo notebook vengono effettuati i due approcci basici per il calcolo delle serie gerarchie della competition. Nello specifico sono analizzati i metodi Top-Down e Bottom-up utilizzando come modello di base il Seasonal Naive con parametro frequency = 7.
+
+```{r}
+source("models.R")
+source("utils.R")
+
+sales_train_validation <- read.csv("data/sales_train_validation.csv",stringsAsFactors = FALSE)
+df_sales <-data.frame(sales_train_validation)
+rm(sales_train_validation)
+calendar <-read.csv("data/calendar.csv",stringsAsFactors = FALSE)
+df_calendar <-data.frame(calendar)
+rm(calendar)
+sell_prices<- read.csv("data/sell_prices.csv",stringsAsFactors = FALSE)
+df_sell_prices <-data.frame(sell_prices)  
+rm(sell_prices)
+```
+Per ottenere la metrica WRMSSE della competition è necessario generare i pesi per ogni livello della gerarchia come viene riportato nella guida.
+
+La formuala del WRMSSE è la seguente:
+
+
+![](WRMSSE.JPG)
+
+```{r}
+
+##calcola tutti i pesi w per la metrica WRMSSE( per tutti e 12 i livelli)
+list_weights<-compute_weights(df_sales, df_sell_prices, df_calendar)
+```
+![](WRMSSE_weights.JPG)
+
+Quindi ottengo dal dataset delle vendite tutte le serie di basso livello:
+```{r}
+#riorganizzo il dataframe per applicare il forecast
+df_sales$item_store_id <- apply( df_sales[ ,c('item_id','store_id')],1,paste,collapse = "_")
+df_sales <- df_sales[,7:ncol(df_sales)]
+ts_sales <-data.frame(t(df_sales))
+colnames(ts_sales)<-df_sales[,'item_store_id']
+ts_sales<-data.frame(ts_sales[1:1913,])
+#to retransfrom all values in integer
+ts_sales <- data.frame(lapply(ts_sales, function(x) as.numeric(as.character(x))))
+ts_sales
+```
+
+Prima di tutto creo la gerarchia con tutte le seire cosi come indicato:
+![](M5table.JPG)
+```{r}
+#generate hierarchy 
+hierarchy<-compute_hierarchy(ts_sales, period=1:1913)
+```
+![](hierarchy.JPG)
+
+# Top Down
+Il primo approccio valutato è quello top down. La disaggregazione dal totale viene fatta utilizando delle proporzioni.In partiolare in questo caso sono state utilizzate le **average historical proportions**.
+Dunque genero la lista di proportionals, una per ogni livello della gerarchia:
+```{r}
+#Average historical proportions
+list_proportions<-compute_proportions(hierarchy)
+```
+![](proportions.JPG)
+
+Faccio poi il forecast della serie top level utilizzando come modello il seasonal naive:
+```{r}
+top_level       <- data.frame(hierarchy$series1)
+names(top_level)<- c("Y")
+#faccio il forecast della serie top-level(totale)
+output <- fit_snaive(top_level, horizon=28, frequency=7,"Y")
+par(mfrow=c(1, 1))
+plot(output$actual, type="l",ylab="sales", xlab="day", main=" Top-level series predicted with snaive (last 28 days)")
+lines(output$predicted, col="red")
+legend(0,55000,legend = c("actual","predicted"), col = c("black","red"), lty = 1:1, cex = 0.7)
+```
+
+Infine genero le serie dei livelli successivi disaggregando e calcolo l'RMSSE relativo ad ognuna:
+```{r}
+
+top_level_predicted       <-data.frame(output$predicted)
+names(top_level_predicted)<- c("Y")
+#calcolo gli rmsse per ogni livello
+list_rmsse <-compute_topdown_rmsse(hierarchy, top_level_predicted, list_proportions)
+```
+![](rmsse.JPG)
+
+Quindi il WRMSSE ottenuto è:
+```{r}
+compute_wrmsse( list_weights, list_rmsse)
+```
+
+
+
+## Bottom-up
+
+Con l'approccio bottom-up invece faccio il forecast di tutte le serie di basso livello e poi aggrego fino ad arrivare alla radice.
+
+Quidni parto con il forecast delle 30490 serie del livello 12 utilizzando il modello seasonal naive:
+```{r}
+#level 12 (bottom)  
+#30490 series
+output<- compute_all_forecasts(ts_sales, horizon=28, frequency=7, fit_snaive)
+```
+
+
+
+E poi aggrego livello per livello fino ad arrivare al totale:
+```{r}
+
+#level11
+#9147 series
+# HOBBIES_1_001_CA_1 -> HOBBIES_1_001_CA 
+result11 <-map(output$df_predicted, ts_sales, gsub, '.{2}$')    
+grouped11<-aggregate_level(result11$map_predicted, result11$map_actual)
+errors11 <-compute_rmsse(grouped11$agg_predicted, grouped11$agg_actual, horizon=28)
+
+#level10
+#3049 series
+# HOBBIES_1_001_CA -> HOBBIES_1_001
+result10 <-map(grouped11$agg_predicted, grouped11$agg_actual, gsub, '.{3}$')
+grouped10<-aggregate_level(result10$map_predicted, result10$map_actual)
+errors10 <-compute_rmsse(grouped10$agg_predicted, grouped10$agg_actual, horizon=28)
+
+#level9
+# 70 series
+# HOBBIES_1_001_CA_1 -> HOBBIES_1_CA_1
+result9 <-map(output$df_predicted, ts_sales, gsub, "_\\d{3}")
+grouped9<-aggregate_level(result9$map_predicted, result9$map_actual)
+errors9 <-compute_rmsse(grouped9$agg_predicted, grouped9$agg_actual, horizon=28)
+
+#level8
+# 30 series
+# HOBBIES_1_001_CA_1 -> HOBBIES_CA_1
+result8 <-map(output$df_predicted, ts_sales, gsub, "_\\d+_\\d+")
+grouped8<-aggregate_level(result8$map_predicted, result8$map_actual)
+errors8 <-compute_rmsse(grouped8$agg_predicted, grouped8$agg_actual, horizon=28)
+
+#level7
+# 21 series
+# HOBBIES_1_001_CA -> HOBBIES_1_CA
+result7 <-map(grouped11$agg_predicted, grouped11$agg_actual, gsub, "_\\d{3}")
+grouped7<-aggregate_level(result7$map_predicted, result7$map_actual)
+errors7 <-compute_rmsse(grouped7$agg_predicted, grouped7$agg_actual, horizon=28)
+
+#level6
+# 9 series
+# HOBBIES_1_001_CA -> HOBBIES_CA
+result6 <-map(grouped11$agg_predicted, grouped11$agg_actual, gsub, "_\\d+_\\d+")
+grouped6<-aggregate_level(result6$map_predicted, result6$map_actual)
+errors6 <-compute_rmsse(grouped6$agg_predicted, grouped6$agg_actual, horizon=28)
+
+#level5
+# 7 series
+# HOBBIES_1_001_CA -> HOBBIES_1
+result5 <-map(grouped11$agg_predicted, grouped11$agg_actual, gsub, ".{7}$")
+grouped5<-aggregate_level(result5$map_predicted, result5$map_actual)
+errors5 <-compute_rmsse(grouped5$agg_predicted, grouped5$agg_actual, horizon=28)
+
+#level4
+# 3 series
+# HOBBIES_1 -> HOBBIES
+result4 <-map(grouped5$agg_predicted, grouped5$agg_actual, gsub, '.{2}$')
+grouped4<-aggregate_level(result4$map_predicted, result4$map_actual)
+errors4 <-compute_rmsse(grouped4$agg_predicted, grouped4$agg_actual, horizon=28)
+
+#level3
+# 10 series
+# HOBBIES_1_CA_1 -> CA_1
+result3 <-map(grouped9$agg_predicted, grouped9$agg_actual, gsub,"^.*?\\_\\d_")
+grouped3<-aggregate_level(result3$map_predicted, result3$map_actual)
+errors3 <-compute_rmsse(grouped3$agg_predicted, grouped3$agg_actual, horizon=28)
+
+#level2
+# 3 series
+# CA_1 -> CA
+result2 <-map(grouped3$agg_predicted, grouped3$agg_actual, gsub, '.{2}$')
+grouped2<-aggregate_level(result2$map_predicted, result2$map_actual)
+errors2 <-compute_rmsse(grouped2$agg_predicted, grouped2$agg_actual, horizon=28)
+
+#level1 (top)
+#grouped1<-list()
+agg_predicted1<-data.frame(apply(grouped2$agg_predicted,1,sum))
+agg_actual1   <-data.frame(apply(grouped2$agg_actual,1,sum))
+names(agg_predicted1) <- c("Y")
+names(agg_actual1)    <- c("Y")
+errors1 <-compute_rmsse(agg_predicted1, agg_actual1, horizon=28)
+
+```
+
+Quindi calcolo il WRMSSE:
+```{r}
+list_rmsse <-list(errors1,errors2,errors3,errors4,errors5,errors6,errors7,errors8,errors9, errors10, errors11,output$errors)
+compute_wrmsse( list_weights, list_rmsse)
+```
+
+I valori di WRMSSE ottenuti sono quindi
+
+* approccio Top-down  : 0.762707
+* approccio Bottom-up : 0.9695381
+
+
+
+  Attualmente nella Leaderboard il primo in classifica ha uno score di 0.46850
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

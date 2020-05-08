@@ -28,6 +28,7 @@ rmsse2<-function(actual,actual_h, predicted_h , step_size = 1){
   naive_end  <- n - step_size
   sum_errors <- sum((ae(actual_h, predicted_h))^2)
   naive_errors <- sum((ae(actual[naive_start:n], actual[1:naive_end]))^2)
+  #print(naive_errors)
   return(sqrt((1/h)* (sum_errors/(naive_errors/naive_end))) )
 }
 
@@ -74,7 +75,7 @@ cross_validation <- function(list_of_frames, horizon, frequency,column, model, p
   m_predicted <- matrix(NA, length(list_of_frames), horizon)
   for (i in 1:length(list_of_frames)) {
     # get i data frame
-    #print(paste0("Split ", i))
+    print(paste0("Split ", i))
     data <- list_of_frames[[i]]
     values <- model(data, horizon, frequency,column)
     actual <- as.numeric(values$actual)
@@ -84,9 +85,9 @@ cross_validation <- function(list_of_frames, horizon, frequency,column, model, p
   }
   if (plot) {
     par(mfrow=c(1, 1))
-    plot(actual, type="l",ylab="sales", xlab="day", main=paste(" TX Series predicted with",as.character(substitute(model)) ))
+    plot(actual, type="l",ylab="sales", xlab="day", main=paste("Series predicted with",as.character(substitute(model)) ))
     lines(predicted, col="red")
-    legend(0,14000,legend = c("actual","predicted"), col = c("black","red"), lty = 1:1, cex = 0.7)
+    legend(0,55000,legend = c("actual","predicted"), col = c("black","red"), lty = 1:1, cex = 0.7)
   }
   df_actual <- as.data.frame(m_actual)
   df_predicted <- as.data.frame(m_predicted)
@@ -102,7 +103,7 @@ compute_all_forecasts<- function(data, horizon, frequency, model, plot=FALSE) {
   errors<-vector()
   i=1
   for (x in name_series) {
-    print(paste0("series ", i))
+    #print(paste0("series ", i))
     values    <- model(data, horizon, frequency,x)
     actual    <- as.numeric(values$actual)
     predicted <- as.numeric(values$predicted)
@@ -110,7 +111,7 @@ compute_all_forecasts<- function(data, horizon, frequency, model, plot=FALSE) {
     df_predicted<-cbind(df_predicted,predicted)
     #df_actual   <-cbind(df_actual,actual)
     errors[i]<-rmsse2(actual_n,actual, predicted, step_size=1)
-    print(errors[i])
+    #print(errors[i])
     i<-i+1
   }
   colnames(df_predicted)<-name_series

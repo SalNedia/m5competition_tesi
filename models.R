@@ -124,10 +124,10 @@ fit_nnetar_xreg <- function(data, horizon, frequency,column) {
   reg <- names(data) 
   # get covariates names
   reg <- names(data) 
-  covariates <- reg[3:length(reg)]
+  covariates <- reg[2:length(reg)]
   xreg_train <- data.frame(train[,covariates])
   names(xreg_train) <- covariates
-  fit <- nnetar(train[,column], xreg=xreg_train)
+  fit <- nnetar(train[,column], xreg=xreg_train, MaxNWts=84581)
   xreg_test <- data.frame(test[,covariates])
   names(xreg_test) <- covariates
   fcast <- forecast(fit, h=horizon, xreg=xreg_test)
@@ -238,8 +238,7 @@ fit_combination <- function(data, horizon, frequency, mode,column) {
 # The training set will be used to train the individual models. The test set is again split
 # into two parts, the first part out of the two is used to train the combination scheme, save
 # for the simple average which does not need any training
-fit_combination_xreg <- function(data, horizon, frequency, mode) {
-  set.seed(123)
+fit_combination_xreg <- function(data, horizon, frequency, mode, column) {
   
   # build ts object
   ts <- ts(data, frequency=frequency)
@@ -258,7 +257,7 @@ fit_combination_xreg <- function(data, horizon, frequency, mode) {
   xreg_train <- data.frame(train[,covariates])
   names(xreg_train) <- covariates
   
-  nnetar_model <- nnetar(train[,column], xreg=as.matrix(xreg_train))
+  nnetar_model <- nnetar(train[,column], xreg=as.matrix(xreg_train), MaxNWts=84581)
   arima_model <- auto.arima(train[,column], xreg=as.matrix(xreg_train))
   
   xreg_test <- data.frame(test[,covariates])
@@ -274,7 +273,7 @@ fit_combination_xreg <- function(data, horizon, frequency, mode) {
     xreg_val <- data.frame(val[,covariates])
     names(xreg_val) <- covariates
     
-    arima_model_val <- auto.arima(train[,column], xreg=as.matrix(xreg_train))
+    arima_model_val <- auto.arima(train[,column], xreg=as.matrix(xreg_train), MaxNWts=84581)
     nnetar_model_val <- nnetar(train[,column], xreg=as.matrix(xreg_train))
     
     # constrained least squares
@@ -310,18 +309,18 @@ fit_combination_xreg <- function(data, horizon, frequency, mode) {
   
 }
 
-fit_combination_xreg_cls <- function(data, horizon, frequency) {
-  return (fit_combination_xreg(data, horizon, frequency, mode="cls"))
+fit_combination_xreg_cls <- function(data, horizon, frequency, column){
+  return (fit_combination_xreg(data, horizon, frequency, mode="cls",column  ))
 }
 
-fit_combination_cls <- function(data, horizon, frequency) {
-  return (fit_combination(data, horizon, frequency, mode="cls"))
+fit_combination_cls <- function(data, horizon, frequency, column){
+  return (fit_combination(data, horizon, frequency, mode="cls",column))
 }
 
-fit_combination_xreg_average <- function(data, horizon, frequency) {
-  return (fit_combination_xreg(data, horizon, frequency, mode="average"))
+fit_combination_xreg_average <- function(data, horizon, frequency, column){
+  return (fit_combination_xreg(data, horizon, frequency, mode="average",column))
 }
 
-fit_combination_average <- function(data, horizon, frequency) {
-  return (fit_combination(data, horizon, frequency, mode="average"))
+fit_combination_average <- function(data, horizon, frequency, column){
+  return (fit_combination(data, horizon, frequency, mode="average",column))
 }

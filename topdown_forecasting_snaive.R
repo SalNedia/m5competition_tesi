@@ -30,10 +30,12 @@ hierarchy<-compute_hierarchy(ts_sales, period=1:1913)
 #Average historical proportions
 list_proportions<-compute_proportions(hierarchy)
 
+
+########################## calcolo top level########################
 top_level       <- data.frame(hierarchy$series1)
 names(top_level)<- c("Y")
 #faccio il forecast della serie top-level(totale)
-output <- fit_snaive(df_top_level, horizon=28, frequency=7,"Y")
+output <- fit_snaive(top_level, horizon=28, frequency=7,"Y")
 
 top_level_predicted       <-data.frame(output$predicted)
 names(top_level_predicted)<- c("Y")
